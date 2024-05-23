@@ -19,7 +19,7 @@ planet_images = {
 }
 
 # Tamaño reducido de las imágenes
-image_size = (30, 30)
+image_size = (100, 100)
 
 # Cargar y reducir el tamaño de las imágenes
 loaded_images = {}
@@ -46,8 +46,8 @@ def main():
     ax.set_xlabel('Distancia (UA)', color='white')
     ax.set_ylabel('Distancia (UA)', color='white')
     ax.set_title('Simulación del Sistema Solar', color='white')
-    ax.set_xlim(-1, 1)
-    ax.set_ylim(-1, 1)
+    ax.set_xlim(-30, 30)
+    ax.set_ylim(-30, 30)
     ax.tick_params(colors='white')  #Cambiar color de las etiquetas de los ejes
 
     #crear directorio de imagenes
@@ -68,29 +68,22 @@ def main():
         # Dibujar nuevas imágenes
         for planeta, (x, y) in positions.items():
             img = loaded_images[planeta]
-            image = ax.imshow(img, extent=(x-0.05, x+0.05, y-0.05, y+0.05), zorder=1)
+            image = ax.imshow(img, extent=(x-.5, x+.5, y-.5, y+.5), zorder=1)
             image_artists[planeta] = image
 
         # Añadir la imagen del Sol en el centro
         img_sol = loaded_images["Sol"]
         ax.imshow(img_sol, extent=(-0.05, 0.05, -0.05, 0.05), zorder=2)
 
-        if i % 10 == 0:
+        if i % 3 == 0:
             plt.savefig(f'frames/frame_{i:03d}.png')
 
         return image_artists.values()
 
     ani = animation.FuncAnimation(
-        fig, update_plot, frames=range(450), interval=1000, blit=True)
+        fig, update_plot, frames=range(90), interval=1000, blit=True)
     ax.legend()
     plt.show()
-
-    # Comprimir la carpeta 'frames' en un archivo ZIP
-    shutil.make_archive('frames', 'zip', 'frames')
-
-    # Enviar el archivo ZIP al servidor
-    with open('frames.zip', 'rb') as f:
-        client_socket.sendall(f.read())
 
     client_socket.close()
 
