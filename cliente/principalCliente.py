@@ -1,12 +1,13 @@
-#Codigo del cliente
 import socket
-import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from PIL import Image, ImageDraw
+from PIL import Image
+import os
+import shutil
 
-# Ruta a las imágenes de los planetas
+# Ruta a las imágenes de los planetas y el sol
 planet_images = {
+    "Sol": "imagenesPlanetas/sol.png",
     "Mercurio": "imagenesPlanetas/mercurio.png",
     "Venus": "imagenesPlanetas/venus.png",
     "Tierra": "imagenesPlanetas/tierra.png",
@@ -16,6 +17,16 @@ planet_images = {
     "Urano": "imagenesPlanetas/urano.png",
     "Neptuno": "imagenesPlanetas/neptuno.png"
 }
+
+# Tamaño reducido de las imágenes
+image_size = (30, 30)
+
+# Cargar y reducir el tamaño de las imágenes
+loaded_images = {}
+for planet, image_path in planet_images.items():
+    img = Image.open(image_path)
+    img = img.resize(image_size, Image.Resampling.LANCZOS)  # Cambiado a Image.Resampling.LANCZOS
+    loaded_images[planet] = img
 
 def deserialize_positions(data):
     positions = {}
@@ -28,40 +39,58 @@ def deserialize_positions(data):
 
 def main():
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect(('192.168.100.15', 12345))
+    client_socket.connect(('192.168.100.42', 12345))
 
     fig, ax = plt.subplots(figsize=(8, 8))
-    ax.set_xlabel('Distancia (UA)')
-    ax.set_ylabel('Distancia (UA)')
-    ax.set_title('Simulación del Sistema Solar')
-    ax.scatter(0, 0, color='yellow', s=100, marker='o', label='Sol')
+    ax.set_facecolor('black')  # Fondo negro
+    ax.set_xlabel('Distancia (UA)', color='white')
+    ax.set_ylabel('Distancia (UA)', color='white')
+    ax.set_title('Simulación del Sistema Solar', color='white')
     ax.set_xlim(-1, 1)
     ax.set_ylim(-1, 1)
+    ax.tick_params(colors='white')  #Cambiar color de las etiquetas de los ejes
 
-    points = {}
-    for planeta in planet_images.keys():
-        point, = ax.plot([], [], 'o', markersize=0)  # No dibujamos puntos, solo usaremos las imágenes
-        points[planeta] = point
+    #crear directorio de imagenes
+    os.makedirs('frames', exist_ok=True)
+    
+    # Inicializar el diccionario para las imágenes en el gráfico
+    image_artists = {}
 
     def update_plot(i):
         client_socket.send('SOLICITAR_POSICIONES'.encode())
         data = client_socket.recv(1024).decode()
         positions = deserialize_positions(data)
 
-        for planeta, point in points.items():
-            if planeta in positions:
-                x, y = positions[planeta]
-                point.set_data(x, y)
-                # Añadir imagen del planeta en la posición
-                planet_image = Image.open(planet_images[planeta])
-                plt.imshow(planet_image, extent=(x-0.05, x+0.05, y-0.05, y+0.05))
+        # Eliminar imágenes anteriores del eje
+        for artist in ax.get_images():
+            artist.remove()
 
-        return points.values()
+        # Dibujar nuevas imágenes
+        for planeta, (x, y) in positions.items():
+            img = loaded_images[planeta]
+            image = ax.imshow(img, extent=(x-0.05, x+0.05, y-0.05, y+0.05), zorder=1)
+            image_artists[planeta] = image
+
+        # Añadir la imagen del Sol en el centro
+        img_sol = loaded_images["Sol"]
+        ax.imshow(img_sol, extent=(-0.05, 0.05, -0.05, 0.05), zorder=2)
+
+        if i % 10 == 0:
+            plt.savefig(f'frames/frame_{i:03d}.png')
+
+        return image_artists.values()
 
     ani = animation.FuncAnimation(
-        fig, update_plot, frames=range(100), interval=1000, blit=True)
+        fig, update_plot, frames=range(450), interval=1000, blit=True)
     ax.legend()
     plt.show()
+
+    # Comprimir la carpeta 'frames' en un archivo ZIP
+    shutil.make_archive('frames', 'zip', 'frames')
+
+    # Enviar el archivo ZIP al servidor
+    with open('frames.zip', 'rb') as f:
+        client_socket.sendall(f.read())
 
     client_socket.close()
 
